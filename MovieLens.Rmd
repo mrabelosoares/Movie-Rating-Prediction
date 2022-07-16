@@ -1,0 +1,184 @@
+---
+title: 'Movie Rating Prediction Project: Movie Lens Dataset'
+subtitle: 'HarvardX - PH125.9x Data Science: Capstone Course'
+author: "Mauricio Rabelo Soares"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+      latex_engine: lualatex
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# **Introduction**
+
+A recommendation system, is a subclass of information filtering system that provide suggestions for items that are most pertinent to a particular user. Typically, the suggestions refer to various decision-making processes, such as what product to purchase, what music to listen to, or what online news to read. [^1] The goal of this project is to create a recommendation system, which the RMSE \< 0.86490, using all the tools we have learn throughout the multi-part course in HarvardX's Data Science Professional Certificate series. As presented in the Machine Learning course [^2] [^3], a recommendation systems for a movie use ***ratings*** **(*y~u,i~*)** that ***users*** **(*u*)** have given to some items, or ***movies*** **(*i*)**, to make specific recommendations to specific user. In this model, movies for which a high rating is predicted for a given user are then recommended to that user. For this challenge we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**.
+
+[^1]: <https://en.wikipedia.org/wiki/Recommender_system>
+
+[^2]: HarvardX - PH125.8x Data Science: Machine Learning [https://learning.edx.org/course/course-v1:HarvardX+PH125.8x+1T2022/block-v1:HarvardX+PH125.8x+1T2022+type\@sequential+block\@7e7727ce543b4ed6ae6338626862eada/block-v1:HarvardX+PH125.8x+1T2022+type\@vertical+block\@df3d8a86b43f4247a4dd42bcabb1a663](https://learning.edx.org/course/course-v1:HarvardX+PH125.8x+1T2022/block-v1:HarvardX+PH125.8x+1T2022+type@sequential+block@7e7727ce543b4ed6ae6338626862eada/block-v1:HarvardX+PH125.8x+1T2022+type@vertical+block@df3d8a86b43f4247a4dd42bcabb1a663){.uri}
+
+[^3]: 34.7 Recommendation systems - <https://rafalab.github.io/dsbook/large-datasets.html#recommendation-systems>
+
+# **Methods**
+
+The methods section explains the process and techniques used in this project, in the first part, then explains the data cleaning used to extract and clean the data, in the second part. In the third part of this section we present the data exploration and visualization of the data to gain some insights. The fourth, and last part of this section, we show the modeling approach used in this project.
+
+## The process and techniques used
+
+Recommendation systems are particularly useful when an individual needs to choose an item from a potentially overwhelming number of items that a service may offer. The recommendations system build in this project are made using the same process and techniques used by the winners of the Netflix challenges[^4], which is presented in Chapter 34 Large datasets at @irizarry2019 [^5], and some new approaches[@recosystem][^6]
+
+[^4]: <https://en.wikipedia.org/wiki/Netflix_Prize>
+
+[^5]: <https://rafalab.github.io/dsbook/large-datasets.html#fnref112>
+
+[^6]: <https://github.com/Airborne737/MovieLens_Harvard>
+
+The process begin with the code provided by the HarvardX PH125.9xData Science: Capstone, where it tidies up the data and create the train (`edx`) and validation (`validation`) sets. After the data cleaning we explore the data to gain some insight trough visualization and selected table. This insights is the basis of the modelling approach of this project, that starts building the simplest possible recommendation system: predict the same rating for all movies regardless of user, and ends with recommendation system that use parallel matrix factorization, the product of two matrices of lower dimensions, $P_{n\times k}$ and $Q_{n\times k}$ were the $P$ is user matrix, and $Q$ is the item matrix, the `recosystem`.
+
+## Data cleaning
+
+For this project we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**. This version of the dataset was released in January of 2009[^7]. The code provided by HarvardX load the library, then download the file from grouplens site and read the file. After read the file the code creat the data frame `movies` and `movielens`. With the `movielens` data frame the code create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
+
+[^7]: <https://grouplens.org/datasets/movielens/10m/>
+
+```{r Create train and validation sets, echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+##########################################################
+# Create edx set, validation set (final hold-out test set)
+##########################################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+
+# MovieLens 10M dataset:
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+
+# if using R 4.0 or later:
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Validation set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+```
+
+## Data exploration and visualization
+
+The exploration and visualization of the data provide insightful information about the users, the movies and ratings. The dataset that we use in this project is presented in table 1.
+
+```{r Library load and verification, message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+```{r echo=TRUE}
+knitr::kable(head(edx %>% as_tibble(),5),
+             caption = "The first 5 rows of the dataset, movielens",
+             digits = 2,
+             align = "cccccc",
+             position = "b") %>%
+kable_styling(latex_options = "scale_down")
+```
+
+The dataset have `r nrow(movielens)` rows, or the numbers of unique rating given by one user to one movie, and `r ncol(movielens)` columns, the `movieid` and `userid` are the variables that going to be used to build the model.
+
+```{r echo=FALSE}
+movielens %>% group_by(userId) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(count)) +
+  geom_histogram(color = "black", fill = "burlywood", bins = 40) +
+  xlab("Ratings") +
+  ylab("Users") +
+  scale_x_log10() +
+  theme_bw()
+```
+
+## Modeling approach
+
+Loss function $$
+\mbox{RMSE} = \sqrt{\frac{1}{N} \sum_{u,i}^{} \left( \hat{y}_{u,i} - y_{u,i} \right)^2 }
+$$
+
+A first model
+
+$$
+Y_{u,i} = \mu + \varepsilon_{u,i}
+$$ Modeling movie effects $$
+Y_{u,i} = \mu + b_i + \varepsilon_{u,i}
+$$ User effects
+
+$$
+Y_{u,i} = \mu + b_i + b_u + \varepsilon_{u,i}
+$$ Penalized least squares
+
+$$
+\sum_{u,i} \left(y_{u,i} - \mu - b_i\right)^2 + \lambda \sum_{i} b_i^2
+$$ $$
+\hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
+$$ Choosing the penalty terms
+
+$$
+\sum_{u,i} \left(y_{u,i} - \mu - b_i - b_u \right)^2 +
+\lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
+$$
+
+A typical solution for P and Q is given by the following optimization problem (Chin, Zhuang, et al. 2015a, 2015b):
+
+$$
+\min_{P,Q} \sum_{(u,v)\in R} \left[f(p_u,q_v;r_{u,v})+\mu_P||p_u||_1+\mu_Q||q_v||_1+\frac{\lambda_P}{2} ||p_u||_2^2+\frac{\lambda_Q}{2} ||q_v||_2^2\right]
+$$
+
+where (u,v) are locations of observed entries in R, ru,v is the observed rating, f is the loss function, and μP,μQ,λP,λQ are penalty parameters to avoid overfitting.
+
+# **Results**
+
+Section that presents the modeling results and discusses the model performance
+
+# **Conclusion**
+
+Section that gives a brief summary of the report, its limitations and future work
+
+# References
+
+bnwicks - <https://github.com/bnwicks/Capstone/blob/master/MovieLens.R>\
+Airborne737 - <https://www.rpubs.com/Airborne737/movielens>\
+R Markdown: Gerando relatórios usando o R (Parte 1) - <https://www.youtube.com/watch?v=obxa5VH4WvY>
+
+R Markdown: Gerando relatórios usando o R (Parte 2) - <https://www.youtube.com/watch?v=tcNx0QbDPBo>
