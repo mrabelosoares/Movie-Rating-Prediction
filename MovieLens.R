@@ -59,127 +59,88 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 #End of inital code supplied by HarvardX course
 ################################################
 
-# Summarise Data
-#How many rows and columns are there in the edx dataset?
-edx %>% as_tibble()
+# Data exploration
+library(fields)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(grid)
+library(ggplot2)
+library(lattice)
+library(gridExtra)
 
-#How many zeros were given as ratings in the edx dataset?
-rating_0 <- sum(edx$rating == 0.0)
-rating_0
+dl <- tempfile()
+download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
-#How many threes were given as ratings in the edx dataset?
-rating_3 <- sum(edx$rating == 3.0)
-rating_3
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
 
-#How many different users, movies and genres are in the edx dataset?
-edx %>%
-  summarize(n_users = n_distinct(userId),
-            n_movies = n_distinct(movieId),
-            n_genres = n_distinct(genres))
+# if using R 4.0 or later:
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+movielens <- left_join(ratings, movies, by = "movieId")
 
-#How many movie ratings are in each of the following genres in the edx dataset?
-#Drama, Comedy, Thriller, Romance
-genreList <- c('Drama', 'Comedy', 'Thriller', 'Romance')
-genreCounts <- sapply(genreList, function(g){
-  edx %>% filter(str_detect(genres, g)) %>% tally()
-})
-genreCounts
+rm(dl, ratings, movies)
 
-#Which movie has the greatest number of ratings?
-numRatings <- edx %>% group_by(movieId) %>% 
-  summarize(numRatings = n(), movieTitle = first(title)) %>%
-  arrange(desc(numRatings))
-numRatings
-
-#What are the five most given ratings in order from most to least?
-countRatings <- edx %>% group_by(rating) %>% 
-  summarize(countRatings = n()) %>%
-  arrange(desc(countRatings))
-countRatings
-
-#In general, half star ratings are less common than whole star ratings 
-#(e.g., there are fewer ratings of 3.5 than there are ratings of 3 or 4, etc.).
-# Ratings Histogram
-edx %>%
-  ggplot(aes(rating)) +
-  geom_histogram(binwidth = 0.5, color = "black") +
-  xlab("Rating") +
-  ylab("Count") +
-  ggtitle("Ratings Histogram") +
-  theme(plot.title = element_text(hjust = 0.5))
+# "The first 5 rows of the dataset, movielens"
+knitr::kable(head(movielens %>% as_tibble(),5),
+             caption = "The first 5 rows of the dataset, movielens",
+             digits = 2,
+             align = "cccccc",
+             position = "b") %>%
+  kable_styling(latex_options = "scale_down")
 
 
-############################################################
-#https://github.com/bnwicks/Capstone/blob/master/MovieLens.R
-############################################################
+#matrix users x movies x rating
+users <- sample(unique(movielens$userId), 50)
+movielens %>% filter(userId %in% users) %>% 
+  select(userId, movieId, rating) %>%
+  spread(movieId, rating) %>% select(sample(ncol(.), 50)) %>% 
+  as.matrix() %>% t(.) %>%
+  image.plot(1:50, 1:50,. , xlab="Movies", ylab="Users")
 
-# Ratings Mean
-mean(edx$rating)
+# Unique users, movies, rating
+p0 <- tableGrob(movielens %>% summarize(n_users = n_distinct(userId), 
+                                  n_movies = n_distinct(movieId),
+                                  n_rating = length(rating)))
 
-# Ratings Users - Number of Ratings
-edx %>% 
-  count(userId) %>%
-  ggplot(aes(n)) +
-  geom_histogram(color = "black") +
-  scale_x_log10() +
-  xlab("# Ratings") +
-  ylab("# Users") +
-  ggtitle("Users Number of Ratings") +
-  theme(plot.title = element_text(hjust = 0.5))
+# Top 5 movies
+p1 <- movielens %>%
+  group_by(title) %>%
+  summarize(count = n()) %>%
+  arrange(-count) %>%
+  top_n(5, count) %>%
+  ggplot(aes(count, reorder(title, count))) +
+  geom_bar(color = "black", fill = "#999999", stat = "identity") +
+  geom_text(aes(label=count), position=position_dodge(width=0.9), hjust=1.5) +
+  xlab("Number of Ratings") +
+  ylab("Movies") +
+  theme_bw()
 
-# Ratings Users - Mean
-edx %>%
+# Top 5 users
+p2 <- movielens %>%
   group_by(userId) %>%
-  summarise(mu_user = mean(rating)) %>%
-  ggplot(aes(mu_user)) +
-  geom_histogram(color = "black") +
-  ggtitle("Average Ratings per User Histogram") +
-  xlab("Average Rating") +
-  ylab("# User") +
-  theme(plot.title = element_text(hjust = 0.5))
+  summarize(count = n()) %>%
+  arrange(-count) %>%
+  top_n(5, count) %>%
+  ggplot(aes(count, reorder(userId, count))) +
+  geom_bar(color = "black", fill = "#999999", stat = "identity") +
+  geom_text(aes(label=count), position=position_dodge(width=0.9), hjust=1.5) +
+  xlab("Number of Ratings") +
+  ylab("Users") +
+  theme_bw()
 
-# Ratings Users - Mean by Number with Curve Fitted
-edx %>%
-  group_by(userId) %>%
-  summarise(mu_user = mean(rating), number = n()) %>%
-  ggplot(aes(x = mu_user, y = number)) +
-  geom_point( ) +
-  scale_y_log10() +
-  geom_smooth(method = lm) +
-  ggtitle("Users Average Ratings per Number of Rated Movies") +
-  xlab("Average Rating") +
-  ylab("# Movies Rated") +
-  theme(plot.title = element_text(hjust = 0.5))
+#Top 5 most rating movies and users, unique variables
+gridExtra::
+  grid.arrange(p1,
+               arrangeGrob (p0, p2, ncol = 2), 
+               nrow = 2, 
+               top = "Top 5 most rating movies and users, unique variables")
 
-edx %>%
-  group_by(userId) %>%
-  summarise(mu_user = mean(rating), number = n()) %>%
-  ggplot(aes(x = mu_user, y = number)) +
-  geom_bin2d( ) +
-  scale_fill_gradientn(colors = grey.colors(10)) +
-  labs(fill="User Count") +
-  scale_y_log10() +
-  geom_smooth(method = lm) +
-  ggtitle("Users Average Ratings per Number of Rated Movies") +
-  xlab("Average Rating") +
-  ylab("# Movies Rated") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-######################################################################
-# end https://github.com/bnwicks/Capstone/blob/master/MovieLens.R
-######################################################################
-
-##############
-# Methods
-#Section that explains the process and techniques used, including data cleaning, 
-#data exploration and visualization, insights gained, and your modeling approach
-##############
-
-
-# https://rafalab.github.io/dsbook/large-datasets.html#recommendation-systems
-#34.7.2 Recommendation systems as a machine learning challenge
-#https://www.rpubs.com/Airborne737/movielens
-
+#creat data partiotion train_set and temp
 set.seed(1, sample.kind="Rounding")
 test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.1, list = FALSE)
 train_set <- edx[-test_index,]
@@ -196,52 +157,6 @@ train_set <- rbind(train_set, removed)
 
 rm(test_index, temp, removed)
 
-# Data exploration
-
-library(tidyverse)
-library(knitr)
-library(kableExtra)
-
-# "The first 5 rows of the dataset, movielens"
-knitr::kable(head(movielens %>% as_tibble(),5),
-             caption = "The first 5 rows of the dataset, movielens",
-             digits = 2,
-             align = "cccccc",
-             position = "b") %>%
-  kable_styling(latex_options = "scale_down")
-
-# Unique users and rated movies
-edx %>% summarize(n_users = n_distinct(userId), n_movies = n_distinct(movieId))
-
-# Top movies
-edx %>%
-  group_by(title) %>%
-  summarize(count = n()) %>%
-  arrange(-count) %>%
-  top_n(20, count) %>%
-  ggplot(aes(count, reorder(title, count))) +
-  geom_bar(color = "black", fill = "deepskyblue2", stat = "identity") +
-  xlab("Count") +
-  ylab(NULL) +
-  theme_bw()
-
-# Movie ratings frequency chart
-edx %>%
-  ggplot(aes(rating, y = ..prop..)) +
-  geom_bar(color = "black", fill = "deepskyblue2") +
-  labs(x = "Ratings", y = "Relative Frequency") +
-  scale_x_continuous(breaks = c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)) +
-  theme_bw()
-
-# Distribution of users
-edx %>% group_by(userId) %>%
-  summarize(count = n()) %>%
-  ggplot(aes(count)) +
-  geom_histogram(color = "black", fill = "deepskyblue2", bins = 40) +
-  xlab("Ratings") +
-  ylab("Users") +
-  scale_x_log10() +
-  theme_bw()
 
 # RMSE
 RMSE <- function(true_ratings, predicted_ratings){
