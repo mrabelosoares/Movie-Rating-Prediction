@@ -1,65 +1,19 @@
-## Mauricio Rabelo Soares
-## https://github.com/mrabelosoares
-## HarvardX: PH125.9x Data Science: Capstone
-
-######################################################################
-## Project MovieLens 
-## Prediction of Movie Rating System
-######################################################################
-
-##########################################################
-# Create edx set, validation set (final hold-out test set)
-##########################################################
-
-# Note: this process could take a couple of minutes
-
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#check library and install packages
 if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
 if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
-
-library(tidyverse)
+if(!require(fields)) install.packages("fields", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(grid)) install.packages("grid", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(lattice)) install.packages("lattice", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(recosystem)) install.packages("recosystem", repos = "http://cran.us.r-project.org")
+options(timeout=100)
+# Load library
 library(caret)
 library(data.table)
-
-# MovieLens 10M dataset:
-# https://grouplens.org/datasets/movielens/10m/
-# http://files.grouplens.org/datasets/movielens/ml-10m.zip
-
-dl <- tempfile()
-download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-
-ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                 col.names = c("userId", "movieId", "rating", "timestamp"))
-movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
-colnames(movies) <- c("movieId", "title", "genres")
-
-# if using R 4.0 or later:
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
-                                           title = as.character(title),
-                                           genres = as.character(genres))
-movielens <- left_join(ratings, movies, by = "movieId")
-
-# Validation set will be 10% of MovieLens data
-set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
-test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
-edx <- movielens[-test_index,]
-temp <- movielens[test_index,]
-
-# Make sure userId and movieId in validation set are also in edx set
-validation <- temp %>% 
-  semi_join(edx, by = "movieId") %>%
-  semi_join(edx, by = "userId")
-
-# Add rows removed from validation set back into edx set
-removed <- anti_join(temp, validation)
-edx <- rbind(edx, removed)
-rm(dl, ratings, movies, test_index, temp, movielens, removed)
-
-################################################
-#End of inital code supplied by HarvardX course
-################################################
-
-# Data exploration
 library(fields)
 library(tidyverse)
 library(knitr)
@@ -68,29 +22,33 @@ library(grid)
 library(ggplot2)
 library(lattice)
 library(gridExtra)
+library(recosystem)
 
+#create tempfile and download
 dl <- tempfile()
 download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
+#read the file and give name to columns
 ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
                  col.names = c("userId", "movieId", "rating", "timestamp"))
 movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
 colnames(movies) <- c("movieId", "title", "genres")
 
-# if using R 4.0 or later:
+#create data frame movielens
 movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
                                            title = as.character(title),
                                            genres = as.character(genres))
 movielens <- left_join(ratings, movies, by = "movieId")
 
+#remove temporary files
 rm(dl, ratings, movies)
 
 # "The first 5 rows of the dataset, movielens"
-knitr::kable(head(movielens %>% as_tibble(),5),
+knitr::kable(head(movielens |> as_tibble(),5),
              caption = "The first 5 rows of the dataset, movielens",
              digits = 2,
              align = "cccccc",
-             position = "b") %>%
+             position = "b") |>
   kable_styling(latex_options = "scale_down")
 
 
@@ -100,7 +58,10 @@ movielens %>% filter(userId %in% users) %>%
   select(userId, movieId, rating) %>%
   spread(movieId, rating) %>% select(sample(ncol(.), 50)) %>% 
   as.matrix() %>% t(.) %>%
-  image.plot(1:50, 1:50,. , xlab="Movies", ylab="Users")
+  image.plot(1:50, 1:50,. , 
+             xlab="Movies", 
+             ylab="Users", 
+             main= "Matrix: users x movies x rating")
 
 # Unique users, movies, rating
 p0 <- tableGrob(movielens %>% summarize(n_users = n_distinct(userId), 
@@ -140,11 +101,31 @@ gridExtra::
                nrow = 2, 
                top = "Top 5 most rating movies and users, unique variables")
 
-#creat data partiotion train_set and temp
+#distribution of movies and user
+p3 <- movielens %>% 
+  count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 100, color = "#999999") + 
+  scale_x_log10() + 
+  ggtitle("Movies")
+p4 <- movielens %>% 
+  count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 100, color = "#999999") + 
+  scale_x_log10() + 
+  ggtitle("Users")
+gridExtra::grid.arrange(p3, p4, nrow = 2)
+
+# RMSE
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+#create data partition train_set and temp
 set.seed(1, sample.kind="Rounding")
-test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.1, list = FALSE)
-train_set <- edx[-test_index,]
-temp <- edx[test_index,]
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+train_set <- movielens[-test_index,]
+temp <- movielens[test_index,]
 
 # Matching userId and movieId in both train and test sets
 test_set <- temp %>% 
@@ -155,13 +136,8 @@ test_set <- temp %>%
 removed <- anti_join(temp, test_set)
 train_set <- rbind(train_set, removed)
 
+Remode
 rm(test_index, temp, removed)
-
-
-# RMSE
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
 
 # Model 1
 mu_hat <- mean(train_set$rating)
@@ -170,7 +146,7 @@ mu_hat
 # Model 1 RMSE
 naive_rmse <- RMSE(test_set$rating, mu_hat)
 results <- tibble(Method = "Model 1: Simply the mean", RMSE = naive_rmse)
-results %>% knitr::kable()
+results %>% knitr::kable("rst")
 
 # Movie bias
 bi <- train_set %>%
@@ -238,7 +214,7 @@ results %>% knitr::kable()
 
 # Model 5 Matrix Factorization using recosystem
 install.packages("recosystem")
-library(recosystem)
+
 set.seed(1, sample.kind="Rounding")
 train_reco <- with(train_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
 test_reco <- with(test_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
@@ -261,6 +237,52 @@ results_reco <- r$predict(test_reco, out_memory())
 factorization_rmse <- RMSE(results_reco, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 5: Matrix factorization using recosystem", RMSE = factorization_rmse))
 results %>% knitr::kable()
+
+##########################################################
+# Create edx set, validation set (final hold-out test set)
+##########################################################
+
+# Note: this process could take a couple of minutes
+
+
+# MovieLens 10M dataset:
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+
+# if using R 4.0 or later:
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Validation set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+################################################
+#End of inital code supplied by HarvardX course
+################################################
+
 
 # Final validation
 set.seed(1, sample.kind="Rounding")
@@ -292,3 +314,4 @@ version
 
 update.packages(ask = FALSE, checkBuilt = TRUE)
 tinytex::tlmgr_update()
+
