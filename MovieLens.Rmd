@@ -39,70 +39,19 @@ Recommendation systems are particularly useful when an individual needs to choos
 
 [^6]: <https://github.com/Airborne737/MovieLens_Harvard>
 
-The process begin with the code provided by the HarvardX PH125.9xData Science: Capstone, where it tidies up the data and create the train (`edx`) and validation (`validation`) sets. After the data cleaning we explore the data to gain some insight trough visualization and selected table. This insights is the basis of the modelling approach of this project, that starts building the simplest possible recommendation system: predict the same rating for all movies regardless of user, and ends with recommendation system that use parallel matrix factorization, the product of two matrices of lower dimensions, $P_{n\times k}$ and $Q_{n\times k}$ were the $P$ is user matrix, and $Q$ is the movie matrix, the `recosystem`.
+The process begin with the download, cleaning and tidy the data. After the data cleaning we explore the data to gain some insight trough visualization and selected table. This insights is the basis of the modelling approach of this project, that starts building the simplest possible recommendation system: predict the same rating for all movies regardless of user, and ends with recommendation system that use parallel matrix factorization, the product of two matrices of lower dimensions, $P_{n\times k}$ and $Q_{n\times k}$ were the $P$ is user matrix, and $Q$ is the movie matrix, the `recosystem`.
 
 ## Data cleaning
 
-For this project we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**. This version of the dataset was released in January of 2009[^7]. The code provided by HarvardX load the library, then download the file from grouplens site and read the file. After read the file the code create the data frame `movies` and `movielens`. With the `movielens` data frame the code create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
+For this project we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**. This version of the dataset was released in January of 2009[^7]. The code below load the library that we need, then download the file from GroupLens site and read the file. After read the file the code create the data frame `movielens` and remove the temporary file.
 
 [^7]: <https://grouplens.org/datasets/movielens/10m/>
 
-```{r Create train and validation sets, echo=TRUE, message=FALSE, warning=FALSE,}
-##########################################################
-# Create edx set, validation set (final hold-out test set)
-##########################################################
+```{r Load Library, message=FALSE, warning=FALSE, echo=TRUE}
 
-# Note: this process could take a couple of minutes
-
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
-
-library(tidyverse)
+# Load library
 library(caret)
 library(data.table)
-
-# MovieLens 10M dataset:
-# https://grouplens.org/datasets/movielens/10m/
-# http://files.grouplens.org/datasets/movielens/ml-10m.zip
-
-dl <- tempfile()
-download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-
-ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                 col.names = c("userId", "movieId", "rating", "timestamp"))
-movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
-colnames(movies) <- c("movieId", "title", "genres")
-
-# if using R 4.0 or later:
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
-                                           title = as.character(title),
-                                           genres = as.character(genres))
-movielens <- left_join(ratings, movies, by = "movieId")
-
-# Validation set will be 10% of MovieLens data
-set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
-test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
-edx <- movielens[-test_index,]
-temp <- movielens[test_index,]
-
-# Make sure userId and movieId in validation set are also in edx set
-validation <- temp %>% 
-  semi_join(edx, by = "movieId") %>%
-  semi_join(edx, by = "userId")
-
-# Add rows removed from validation set back into edx set
-removed <- anti_join(temp, validation)
-edx <- rbind(edx, removed)
-rm(dl, ratings, movies, test_index, temp, movielens, removed)
-
-```
-
-## Data exploration and visualization
-
-The exploration and visualization of the data provide insightful information about the users, the movies and ratings. The first 5 rows of the dataset that we use in this project is presented in table 1. The columns `movieId`, `userId`and `rating`are the variable of interest.
-
-```{r Load MovieLens, echo=TRUE, message=FALSE, warning=FALSE}
 library(fields)
 library(tidyverse)
 library(knitr)
@@ -111,23 +60,36 @@ library(grid)
 library(ggplot2)
 library(lattice)
 library(gridExtra)
+library(recosystem)
+
+```
+
+```{r Creat and clean the dataset, message=FALSE, warning=FALSE, echo=TRUE}
+options(timeout=100)
+#create tempfile and download
 dl <- tempfile()
 download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
+#read the file and give name to columns
 ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
                  col.names = c("userId", "movieId", "rating", "timestamp"))
 movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
 colnames(movies) <- c("movieId", "title", "genres")
 
-# if using R 4.0 or later:
+#create data frame movielens
 movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
                                            title = as.character(title),
                                            genres = as.character(genres))
 movielens <- left_join(ratings, movies, by = "movieId")
 
+#remove temporary files
 rm(dl, ratings, movies)
 
 ```
+
+## Data exploration and visualization
+
+The exploration and visualization of the data provide insightful information about the users, the movies and ratings. The first 5 rows of the dataset that we use in this project is presented in table 1. The columns `movieId`, `userId` and `rating` are the variable of interest.
 
 ```{r The first 5 rows of the dataset, echo=TRUE, message=FALSE, warning=FALSE}
 knitr::kable(head(movielens %>% as_tibble(),5),
@@ -147,10 +109,13 @@ movielens %>% filter(userId %in% users) %>%
   select(userId, movieId, rating) %>%
   spread(movieId, rating) %>% select(sample(ncol(.), 50)) %>% 
   as.matrix() %>% t(.) %>%
-  image.plot(1:50, 1:50,. , xlab="Movies", ylab="Users")
+  image.plot(1:50, 1:50,. , 
+             xlab="Movies", 
+             ylab="Users", 
+             main= "Matrix: users x movies x rating")
 ```
 
-To see a potential flaw in the data we make a slice of the top 5 most rated movies and users. The unique users that provided ratings, the unique movies that were rated and the unique rating provided by a unique user to a unique movie, are presented to illustrate the possible matrix $users \times movies$ 69,878 x 10,677 = XXXX and the realized matrix 9000055. The extremes values confirm that some users are much more actives than others, rating more than 50% of the total unique movies, and some movies have been rated for more than 1/3 of the total unique users.
+To see a potential flaw in the data we make a slice of the top 5 most rated movies and users. The unique users that provided ratings, the unique movies that were rated and the unique rating provided by a unique user to a unique movie, are presented to illustrate the possible rating matrix $users \times movies$ `n_distinct(userId)` x `n_distinct(movieId)` = \`\``n_distinct(userId)*n_distinct(movieId)` and the realized rating matrix `length(rating)`. The extremes values confirm that some users are much more actives than others, the most active user rated more than 50% of the total unique movies, and some movies have been rated for more than 1/3 of the total unique users.
 
 ```{r Top 5 most rating movies and users, unique variables, echo=TRUE, message=FALSE, warning=FALSE}
 # Unique users, movies, rating
@@ -194,8 +159,8 @@ gridExtra::grid.arrange(p1,
 
 The dataset distribution presented trough histograms provide some insights about the general proprieties of the data. As showed in the slice before some movies get rated more than others, and some user are more active than others.
 
-```{r}
-#distribution of movies and user
+```{r distribution of movies and user, message=FALSE,echo=TRUE, warning=FALSE}
+
 p3 <- movielens %>% 
   count(movieId) %>% 
   ggplot(aes(n)) + 
@@ -214,9 +179,41 @@ gridExtra::grid.arrange(p3, p4, nrow = 2)
 
 ## Modeling approach
 
-Loss function $$
+The recommendation system is better as its error has decreased, for this project the error is the typical error we make when predicting a movie rating $\left( \hat{y}_{u,i} - y_{u,i} \right)$. The loss function used to evaluate the models is based on the residual mean squared error ($RMSE$) on a test set. The definition of $RMSE$ includes $N$ , the number of user/movie combination, and the sum occurring over all these combination. In this case the Loss function is: $$
 \mbox{RMSE} = \sqrt{\frac{1}{N} \sum_{u,i}^{} \left( \hat{y}_{u,i} - y_{u,i} \right)^2 }
 $$
+
+```{r RMSE, message=FALSE, warning=FALSE, echo=TRUE}
+
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+```
+
+The model which $RMSE = 0$ is a perfect model prediction, or without errors. For this project the reported $RMSE < 0.86490$ is the goal. The $RMSE > 1$ means our error is larger than one star, which means a bad model.
+
+Machine Learning
+
+The machine learning decisions are based on algorithms build with data, so for this project the dataset MovieLens 10M are going to be used to train and test the model. The train_set and test_set are build trough function `createDataPartition` as presented:
+
+```{r Create data partition train_set and temp, message=FALSE, warning=FALSE, echo=TRUE,}
+
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+train_set <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Matching userId and movieId in both train and test sets
+test_set <- temp %>% 
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
+
+# Adding back rows into train set
+removed <- anti_join(temp, test_set)
+train_set <- rbind(train_set, removed)
+
+rm(test_index, temp, removed)
+```
 
 A first model
 
@@ -250,6 +247,8 @@ $$
 where (u,v) are locations of observed entries in R, ru,v is the observed rating, f is the loss function, and μP,μQ,λP,λQ are penalty parameters to avoid overfitting.
 
 # **Results**
+
+With the `movielens` data frame the code create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
 
 Section that presents the modeling results and discusses the model performance
 
