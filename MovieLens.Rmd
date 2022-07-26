@@ -164,13 +164,13 @@ The dataset distribution presented trough histograms provide some insights about
 p3 <- movielens %>% 
   count(movieId) %>% 
   ggplot(aes(n)) + 
-  geom_histogram(bins = 100, color = "#999999") + 
+  geom_histogram(bins = 100, color = "black", fill="#999999") + 
   scale_x_log10() + 
   ggtitle("Movies")
 p4 <- movielens %>% 
   count(userId) %>% 
   ggplot(aes(n)) + 
-  geom_histogram(bins = 100, color = "#999999") + 
+  geom_histogram(bins = 100, color = "black", fill="#999999") + 
   scale_x_log10() + 
   ggtitle("Users")
 gridExtra::grid.arrange(p3, p4, nrow = 2)
@@ -192,7 +192,7 @@ RMSE <- function(true_ratings, predicted_ratings){
 
 The model which $RMSE = 0$ is a perfect model prediction, or without errors. For this project the reported $RMSE < 0.86490$ is the goal. The $RMSE > 1$ means our error is larger than one star, which means a bad model.
 
-Machine Learning
+### Machine Learning
 
 The machine learning decisions are based on algorithms build with data, so for this project the dataset MovieLens 10M are going to be used to train and test the model. The train_set and test_set are build trough function `createDataPartition` as presented:
 
@@ -212,20 +212,90 @@ test_set <- temp %>%
 removed <- anti_join(temp, test_set)
 train_set <- rbind(train_set, removed)
 
+#remove temporary file
 rm(test_index, temp, removed)
 ```
 
-A first model
+### Naive approach
+
+The simplest model to recommend a movie to any user, is the model that predict the same rate $\mu$ for all movies regardless of user. In the naive approach the variation of the differences is random, and the independent error $\epsilon_{u,i}$ centered at 0. The model looks like:
 
 $$
 Y_{u,i} = \mu + \varepsilon_{u,i}
-$$ Modeling movie effects $$
-Y_{u,i} = \mu + b_i + \varepsilon_{u,i}
-$$ User effects
+$$
+
+The average of all ratings is the estimate that minimize the $RMSE$, and if we fill the blank cells in the matrix with the $\mu$ `mu` we obtain the `naive_rmse`.
+
+```{r Model 1 - Naive_rmse, echo=TRUE, message=FALSE, warning=FALSE}
+#Average of all ratings
+mu <- mean(train_set$rating)
+mu
+
+# Model 1 - Naive_rmse
+naive_rmse <- RMSE(test_set$rating, mu)
+results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
+results
+```
+
+### Bias approach
+
+The data exploration and visualization trough Matrix: users x movies x rating presented a pictured that some user are more active than others, and some movies are better rated than others, so let's modeling this effects. In the formula below the $b_i$ and $b_u$ are respectively the movie and user effect:
 
 $$
 Y_{u,i} = \mu + b_i + b_u + \varepsilon_{u,i}
-$$ Penalized least squares
+$$
+
+The movie effects measure the mean of $Y_{u,i} - \hat{\mu}$ for each movie $i$, the code is showed below whith the histogram that presented the right skew distribution around zero.
+
+```{r Movie bias and distribution, echo=TRUE, message=FALSE, warning=FALSE}
+# Movie bias
+movies_bias <- train_set %>%
+  group_by(movieId) %>%
+  summarize(b_i = mean(rating - mu))
+
+# Movie bias distribution
+movies_bias %>% ggplot(aes(b_i)) +
+  geom_histogram(color = "black", fill = "#999999", bins = 100) +
+  xlab("Movie Bias") +
+  ylab("Count") +
+  theme_bw()
+```
+
+In this approach, using ${y}_{u,i} = {\mu} + {b}_i$, our prediction improves by 0.11:
+
+```{r Model 2 - Movie Bias RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+# Model 2 - Movie Bias RMSE
+predicted_ratings <- mu + test_set %>%
+  left_join(movies_bias, by = "movieId") %>%
+  pull(b_i)
+m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
+results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", RMSE = m_bias_rmse))
+results
+```
+
+The user effects measure the variability across all users, in special the more actives users since they affect the average rate of more movies. As we saw in the colors of the matrix some users are more demanding than other. To fit the model we add the $b_u$ term, and the code of the improved model is:
+
+```{r # Model 3 - Movies and User Bias RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+# User bias
+user_bias <- train_set %>%
+  left_join(movies_bias, by = "movieId") %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+# Model 3 - Movies and User Bias RMSE
+predicted_ratings <- test_set %>%
+  left_join(movies_bias, by = "movieId") %>%
+  left_join(user_bias, by = "userId") %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  pull(pred)
+u_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
+results <- bind_rows(results, tibble(Method = "Model 3: Mean + movie bias + user effect", RMSE = u_bias_rmse))
+results %>% knitr::kable()
+```
+
+### Regularization approach
+
+Penalized least squares
 
 $$
 \sum_{u,i} \left(y_{u,i} - \mu - b_i\right)^2 + \lambda \sum_{i} b_i^2
@@ -237,6 +307,8 @@ $$
 \sum_{u,i} \left(y_{u,i} - \mu - b_i - b_u \right)^2 +
 \lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
 $$
+
+### Matrix Factorization approach
 
 A typical solution for P and Q is given by the following optimization problem (Chin, Zhuang, et al. 2015a, 2015b):
 
