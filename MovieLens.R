@@ -24,6 +24,8 @@ library(lattice)
 library(gridExtra)
 library(recosystem)
 
+##Data Clean
+
 #create tempfile and download
 dl <- tempfile()
 download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
@@ -43,9 +45,11 @@ movielens <- left_join(ratings, movies, by = "movieId")
 #remove temporary files
 rm(dl, ratings, movies)
 
+##Data exploration and visualization 
+
 # "The first 5 rows of the dataset, movielens"
 knitr::kable(head(movielens |> as_tibble(),5),
-             caption = "The first 5 rows of the dataset, movielens",
+             caption = "The first 5 rows of the dataset movielens",
              digits = 2,
              align = "cccccc",
              position = "b") |>
@@ -95,8 +99,7 @@ p2 <- movielens %>%
   theme_bw()
 
 #Top 5 most rating movies and users, unique variables
-gridExtra::
-  grid.arrange(p1,
+gridExtra::grid.arrange(p1,
                arrangeGrob (p0, p2, ncol = 2), 
                nrow = 2, 
                top = "Top 5 most rating movies and users, unique variables")
@@ -105,16 +108,18 @@ gridExtra::
 p3 <- movielens %>% 
   count(movieId) %>% 
   ggplot(aes(n)) + 
-  geom_histogram(bins = 100, color = "#999999") + 
+  geom_histogram(bins = 100, color = "black", fill="#999999") + 
   scale_x_log10() + 
   ggtitle("Movies")
 p4 <- movielens %>% 
   count(userId) %>% 
   ggplot(aes(n)) + 
-  geom_histogram(bins = 100, color = "#999999") + 
+  geom_histogram(bins = 100, color = "black", fill="#999999") + 
   scale_x_log10() + 
   ggtitle("Users")
 gridExtra::grid.arrange(p3, p4, nrow = 2)
+
+##Modeling approach
 
 # RMSE
 RMSE <- function(true_ratings, predicted_ratings){
@@ -136,53 +141,61 @@ test_set <- temp %>%
 removed <- anti_join(temp, test_set)
 train_set <- rbind(train_set, removed)
 
-Remode
+#remove temporary file
 rm(test_index, temp, removed)
 
-# Model 1
-mu_hat <- mean(train_set$rating)
-mu_hat
+##naive approach
+#Average of all ratings
+mu <- mean(train_set$rating)
+mu
 
-# Model 1 RMSE
-naive_rmse <- RMSE(test_set$rating, mu_hat)
-results <- tibble(Method = "Model 1: Simply the mean", RMSE = naive_rmse)
-results %>% knitr::kable("rst")
+# Model 1 - Naive_rmse
+naive_rmse <- RMSE(test_set$rating, mu)
+results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
+results
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach", "latex") %>% 
+  kable_styling(font_size = 8)
+
+##Bias approach
 
 # Movie bias
-bi <- train_set %>%
+movies_bias <- train_set %>%
   group_by(movieId) %>%
-  summarize(b_i = mean(rating - mu_hat))
+  summarize(b_i = mean(rating - mu))
 
 # Movie bias distribution
-bi %>% ggplot(aes(b_i)) +
-  geom_histogram(color = "black", fill = "deepskyblue2", bins = 10) +
+movies_bias %>% ggplot(aes(b_i)) +
+  geom_histogram(color = "black", fill = "#999999", bins = 100) +
   xlab("Movie Bias") +
   ylab("Count") +
   theme_bw()
 
-# Model 2 RMSE
-predicted_ratings <- mu_hat + test_set %>%
-  left_join(bi, by = "movieId") %>%
+# Model 2 - Movie Bias RMSE
+predicted_ratings <- mu + test_set %>%
+  left_join(movies_bias, by = "movieId") %>%
   pull(b_i)
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", RMSE = m_bias_rmse))
 results %>% knitr::kable()
 
-# User bias
-bu <- train_set %>%
-  left_join(bi, by = "movieId") %>%
-  group_by(userId) %>%
-  summarize(b_u = mean(rating - mu_hat - b_i))
 
-# Model 3 RMSE
+# User bias
+user_bias <- train_set %>%
+  left_join(movies_bias, by = "movieId") %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+# Model 3 - Movies and User Bias RMSE
 predicted_ratings <- test_set %>%
-  left_join(bi, by = "movieId") %>%
-  left_join(bu, by = "userId") %>%
-  mutate(pred = mu_hat + b_i + b_u) %>%
+  left_join(movies_bias, by = "movieId") %>%
+  left_join(user_bias, by = "userId") %>%
+  mutate(pred = mu + b_i + b_u) %>%
   pull(pred)
 u_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 3: Mean + movie bias + user effect", RMSE = u_bias_rmse))
 results %>% knitr::kable()
+
+## Regularization approach
 
 # Model 4 Regularization and RMSE
 lambdas <- seq(0, 10, 0.25)
@@ -190,15 +203,15 @@ lambdas <- seq(0, 10, 0.25)
 rmses <- sapply(lambdas, function(x){
   b_i <- train_set %>%
     group_by(movieId) %>%
-    summarize(b_i = sum(rating - mu_hat)/(n()+x))
+    summarize(b_i = sum(rating - mu)/(n()+x))
   b_u <- train_set %>%
     left_join(b_i, by = "movieId") %>%
     group_by(userId) %>%
-    summarize(b_u = sum(rating - b_i - mu_hat)/(n()+x))
+    summarize(b_u = sum(rating - b_i - mu)/(n()+x))
   predicted_ratings <- test_set %>%
     left_join(b_i, by = "movieId") %>%
     left_join(b_u, by = "userId") %>%
-    mutate(pred = mu_hat + b_i + b_u) %>%
+    mutate(pred = mu + b_i + b_u) %>%
     pull(pred)
   return(RMSE(predicted_ratings, test_set$rating))
 })
@@ -208,13 +221,14 @@ qplot(lambdas, rmses, color = I("blue"))
 lambda <- lambdas[which.min(rmses)]
 lambda
 
-# Model 4 RMSE
+# Model 4 - Regularization RMSE
 results <- bind_rows(results, tibble(Method = "Model 4: Regularized movie and user effects", RMSE = min(rmses)))
 results %>% knitr::kable()
 
-# Model 5 Matrix Factorization using recosystem
-install.packages("recosystem")
 
+## Matrix Factorization approach
+
+# Model 5 Matrix Factorization using recosystem
 set.seed(1, sample.kind="Rounding")
 train_reco <- with(train_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
 test_reco <- with(test_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
@@ -242,13 +256,6 @@ results %>% knitr::kable()
 # Create edx set, validation set (final hold-out test set)
 ##########################################################
 
-# Note: this process could take a couple of minutes
-
-
-# MovieLens 10M dataset:
-# https://grouplens.org/datasets/movielens/10m/
-# http://files.grouplens.org/datasets/movielens/ml-10m.zip
-
 dl <- tempfile()
 download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
@@ -264,7 +271,7 @@ movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
 movielens <- left_join(ratings, movies, by = "movieId")
 
 # Validation set will be 10% of MovieLens data
-set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+set.seed(1, sample.kind="Rounding")
 test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
 edx <- movielens[-test_index,]
 temp <- movielens[test_index,]
