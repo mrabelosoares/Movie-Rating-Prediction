@@ -269,7 +269,8 @@ predicted_ratings <- mu + test_set %>%
   left_join(movies_bias, by = "movieId") %>%
   pull(b_i)
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", RMSE = m_bias_rmse))
+results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", 
+                                     RMSE = m_bias_rmse))
 results
 ```
 
@@ -288,20 +289,21 @@ predicted_ratings <- test_set %>%
   left_join(user_bias, by = "userId") %>%
   mutate(pred = mu + b_i + b_u) %>%
   pull(pred)
-u_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 3: Mean + movie bias + user effect", RMSE = u_bias_rmse))
+movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
+results <- bind_rows(results, tibble(Method = "Model 3: Mean + movie bias + user effect", RMSE = movie_user_bias_rmse))
 results %>% knitr::kable()
 ```
 
 ### Regularization approach
 
-Penalized least squares
+The movies that had one rate, or few rates, produce some noisy in the prediction system since larger errors can increase our $RMSE$. The regularization approach penalize large estimates that are formed using small samples, to constrain the total variability of the effect sizes.
 
+The penalized least squares equation of the full model is presented bellow and the $\lambda$ is the tuning parameter that allow us to control the variability of the effect size. When our sample size is very large, we have a stable estimate, and the penalty term, or $\lambda$, is ignored. $$
+\sum_{u,i} \left(y_{u,i} - \mu - b_i - b_u \right)^2 +
+\lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
 $$
-\sum_{u,i} \left(y_{u,i} - \mu - b_i\right)^2 + \lambda \sum_{i} b_i^2
-$$ $$
-\hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
-$$ Choosing the penalty terms
+
+Choosing the penalty terms
 
 $$
 \sum_{u,i} \left(y_{u,i} - \mu - b_i - b_u \right)^2 +
