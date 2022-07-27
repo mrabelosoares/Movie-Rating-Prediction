@@ -175,7 +175,8 @@ predicted_ratings <- mu + test_set %>%
   left_join(movies_bias, by = "movieId") %>%
   pull(b_i)
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", RMSE = m_bias_rmse))
+results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias",
+                                     RMSE = m_bias_rmse))
 results %>% knitr::kable()
 
 
@@ -191,13 +192,34 @@ predicted_ratings <- test_set %>%
   left_join(user_bias, by = "userId") %>%
   mutate(pred = mu + b_i + b_u) %>%
   pull(pred)
-u_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 3: Mean + movie bias + user effect", RMSE = u_bias_rmse))
+movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
+results <- bind_rows(results, 
+                     tibble(Method = "Model 3: Mean + movie bias + user effect",
+                            RMSE = movie_user_bias_rmse))
 results %>% knitr::kable()
 
 ## Regularization approach
 
 # Model 4 Regularization and RMSE
+lambda <- 20
+mu <- mean(train_set$rating)
+
+movie_avgs <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu))
+
+movie_reg_avgs <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = sum(rating - mu)/(n()+lambda), n_i = n()) 
+
+
+#Regularized x original
+tibble(original = movie_avgs$b_i, 
+       regularlized = movie_reg_avgs$b_i, 
+       n = movie_reg_avgs$n_i) %>%
+  ggplot(aes(original, regularlized, size=sqrt(n))) + 
+  geom_point(shape=1, alpha=0.5)
+
 lambdas <- seq(0, 10, 0.25)
 
 rmses <- sapply(lambdas, function(x){
@@ -217,12 +239,14 @@ rmses <- sapply(lambdas, function(x){
 })
 
 # Lambdas plot and best parameter
-qplot(lambdas, rmses, color = I("blue"))
+qplot(lambdas, rmses, color = I("#000000"))
 lambda <- lambdas[which.min(rmses)]
 lambda
 
 # Model 4 - Regularization RMSE
-results <- bind_rows(results, tibble(Method = "Model 4: Regularized movie and user effects", RMSE = min(rmses)))
+results <- bind_rows(results, 
+                     tibble(Method = "Model 4: Regularized movie and user effects",
+                            RMSE = min(rmses)))
 results %>% knitr::kable()
 
 
