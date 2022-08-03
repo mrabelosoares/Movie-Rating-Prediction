@@ -202,16 +202,13 @@ results %>% knitr::kable()
 
 # Model 4 Regularization and RMSE
 lambda <- 20
-mu <- mean(train_set$rating)
-
+mu <- mean(train_set$rating) 
 movie_avgs <- train_set %>% 
   group_by(movieId) %>% 
   summarize(b_i = mean(rating - mu))
-
 movie_reg_avgs <- train_set %>% 
   group_by(movieId) %>% 
   summarize(b_i = sum(rating - mu)/(n()+lambda), n_i = n()) 
-
 
 #Regularized x original
 tibble(original = movie_avgs$b_i, 
@@ -220,6 +217,7 @@ tibble(original = movie_avgs$b_i,
   ggplot(aes(original, regularlized, size=sqrt(n))) + 
   geom_point(shape=1, alpha=0.5)
 
+#minimize the full model
 lambdas <- seq(0, 10, 0.25)
 
 rmses <- sapply(lambdas, function(x){
