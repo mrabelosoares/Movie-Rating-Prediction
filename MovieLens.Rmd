@@ -31,7 +31,7 @@ The methods section explains the process and techniques used in this project, in
 
 ## The process and techniques used
 
-Recommendation systems are particularly useful when an individual needs to choose an item from a potentially overwhelming number of items that a service may offer. The recommendations system build in this project are made using the same process and techniques used by the winners of the Netflix challenges[^4], which is presented in Chapter 34 Large datasets at @irizarry2019 [^5], and some new approaches[@recosystem][^6]
+Recommendation systems are particularly useful when an individual needs to choose an item from a potentially overwhelming number of items that a service may offer. The recommendations system build in this project are made using the same process and techniques used by the winners of the Netflix challenges[^4], which is presented in Chapter 34 Large datasets at @irizarry2019 [^5], and some new approaches[@recosystem][^6][^7]
 
 [^4]: <https://en.wikipedia.org/wiki/Netflix_Prize>
 
@@ -39,13 +39,15 @@ Recommendation systems are particularly useful when an individual needs to choos
 
 [^6]: <https://github.com/Airborne737/MovieLens_Harvard>
 
+[^7]: <https://rpubs.com/tarashnot/recommender_comparison>
+
 The process begin with the download, cleaning and tidy the data. After the data cleaning we explore the data to gain some insight trough visualization and selected table. This insights is the basis of the modelling approach of this project, that starts building the simplest possible recommendation system: predict the same rating for all movies regardless of user, and ends with the `recosystem`. The `recosystem` is a recommendation system that use parallel matrix factorization, the product of two matrices of lower dimensions, $P_{n\times k}$ and $Q_{n\times k}$ were: $P$ - user matrix; $Q$ - movie matrix.
 
 ## Data cleaning
 
-For this project we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**. This version of the dataset was released in January of 2009[^7]. The code below load the library that we need, then download the file from GroupLens site and read the file. After read the file the code create the data frame `movielens` and remove the temporary file.
+For this project we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**. This version of the dataset was released in January of 2009[^8]. The code below load the library that we need, then download the file from GroupLens site and read the file. After read the file the code create the data frame `movielens` and remove the temporary file.
 
-[^7]: <https://grouplens.org/datasets/movielens/10m/>
+[^8]: <https://grouplens.org/datasets/movielens/10m/>
 
 ```{r Load Library, message=FALSE, warning=FALSE, echo=TRUE}
 
@@ -115,7 +117,7 @@ movielens %>% filter(userId %in% users) %>%
              main= "Matrix: users x movies x rating")
 ```
 
-To see a potential flaw in the data we make a slice of the top 5 most rated movies and users. The unique users that provided ratings, the unique movies that were rated and the unique rating provided by a unique user to a unique movie, are presented to illustrate the possible rating matrix $users \times movies$ = $10677 \times 69878 = 746087406$ and the realized rating matrix $10000054$, or 1.34% of points of the matrix is filled. The extremes values confirm that some users are much more actives than others, the most active user rated more than 50% of the total unique movies, and some movies have been rated for more than 1/3 of the total unique users.
+To see a potential flaw in the data we make a slice of the top 5 most rated movies and most active users. The unique users that provided ratings, the unique movies that were rated and the unique rating provided by a unique user to a unique movie, are presented to illustrate the possible rating matrix $users \times movies$ = $10677 \times 69878 = 746087406$ and the realized rating matrix $10000054$, or 1.34% of points of the matrix is filled. The extremes values confirm that some users are much more actives than others, the most active user rated more than 50% of the total unique movies, and some movies have been rated for more than 1/3 of the total unique users.
 
 ```{r Top 5 most rating movies and users, unique variables, echo=TRUE, message=FALSE, warning=FALSE}
 # Unique users, movies, rating
@@ -235,7 +237,8 @@ mu
 # Model 1 - Naive_rmse
 naive_rmse <- RMSE(test_set$rating, mu)
 results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
-results
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 ```
 
 ### Bias approach
@@ -272,7 +275,8 @@ predicted_ratings <- mu + test_set %>%
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", 
                                      RMSE = m_bias_rmse))
-results
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 ```
 
 The user effects measure the variability across all users, in special the more actives users since they affect the average rate of more movies. As we saw in the colors of the matrix some users are more demanding than other. To fit the model we add the $b_u$ term. The code of the improved model is:
@@ -294,7 +298,8 @@ movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, 
                      tibble(Method = "Model 3: Mean + movie bias + user effect", 
                             RMSE = movie_user_bias_rmse))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 ```
 
 ### Regularization approach
@@ -306,7 +311,7 @@ The penalized least squares equation of the full model is presented bellow and t
 \lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
 $$
 
-To present the effect of penalty term let's choose a $λ = 20$ and compare the original values and regularized value. The plot show that small the sample are more close to $0$, or closer to mean value, which means a smaller $RMSE$ for that sample.
+To present the effect of penalty term let's choose a $λ = 20$ and compare the original values and regularized value. The plot show that as small the sample are more close to $0$, or closer to mean value, which means a smaller $RMSE$ for that sample.
 
 ```{r Lambda, echo=TRUE, message=FALSE, warning=FALSE}
 # Model 4 Regularization and RMSE
@@ -327,7 +332,7 @@ tibble(original = movie_avgs$b_i,
   geom_point(shape=1, alpha=0.5)
 ```
 
-The values of $\hat{b}_i$ and $\hat{b}_u$ that minimize the full model and the code to calculate the $RMSE$ is presented below.
+The values of ${b}_i$ and ${b}_u$ that minimize the full model and the code to calculate the $RMSE$ is presented below.
 
 $$
 \hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
@@ -366,18 +371,29 @@ lambda
 results <- bind_rows(results, 
                      tibble(Method = "Model 4: Regularized movie and user effects",
                             RMSE = min(rmses)))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 ```
+
+Finally we achieve our goal, the $RMSE$ is lower than 0.86490. But can we do better?
 
 ### Matrix Factorization approach
 
-A typical solution for P and Q is given by the following optimization problem (Chin, Zhuang, et al. 2015a, 2015b):
+A matrix Factorization is the last approach to solve recommendation system problem presented in this project. The main idea is that there is structure in the data, the factors as gender and actor, could be grouped and form a simplification of information. We can approximate the matrix $R_{m\times n}$ , that represent the relevant structure, by the product of two matrices of lower dimension: $P_{n\times k}$ , or the latent factors of users, and $Q_{n\times k}$.
+
+$$
+R\approx PQ'
+$$
+
+Let $p_u$ be the $u$-th row of $P$, and $q_v$ be the $v$-th row of $Q$, then the rating given by user $u$ on movie $v$ would be predicted as $p_u q'_v$. A typical solution for $P$ and $Q$ is given by the following optimization problem (Chin, Zhuang, et al. 2015a, 2015b):
 
 $$
 \min_{P,Q} \sum_{(u,v)\in R} \left[f(p_u,q_v;r_{u,v})+\mu_P||p_u||_1+\mu_Q||q_v||_1+\frac{\lambda_P}{2} ||p_u||_2^2+\frac{\lambda_Q}{2} ||q_v||_2^2\right]
 $$
 
-where (u,v) are locations of observed entries in R, ru,v is the observed rating, f is the loss function, and μP,μQ,λP,λQ are penalty parameters to avoid overfitting.
+where ($u$,$v$) are locations of observed entries in $R$, $r_u,_v$ is the observed rating, $f$ is the loss function, and $μ_P$,$μ_Q$,$λP$,$λQ$ are penalty parameters to avoid overfitting.
+
+The `recosystem` had the best accuracy in comparative analysis, and going to be our choice. The algorithm use formatted data to tune the parameters by `$tune`, train by `$train` and test by `$predict`. The tune parameter adjust is: the number of latent factors `dim`, regularization cost for user and movie factors `costp_l2` and `costq_l2`, the step size in gradient descent `lrate`, the number of iterations `niter`.
 
 # **Results**
 
