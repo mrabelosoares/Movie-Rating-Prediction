@@ -152,8 +152,7 @@ mu
 # Model 1 - Naive_rmse
 naive_rmse <- RMSE(test_set$rating, mu)
 results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
-results
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach", "latex") %>% 
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
   kable_styling(font_size = 8)
 
 ##Bias approach
@@ -177,7 +176,8 @@ predicted_ratings <- mu + test_set %>%
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias",
                                      RMSE = m_bias_rmse))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 
 
 # User bias
@@ -196,7 +196,8 @@ movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, 
                      tibble(Method = "Model 3: Mean + movie bias + user effect",
                             RMSE = movie_user_bias_rmse))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 
 ## Regularization approach
 
@@ -245,7 +246,8 @@ lambda
 results <- bind_rows(results, 
                      tibble(Method = "Model 4: Regularized movie and user effects",
                             RMSE = min(rmses)))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 8)
 
 
 ## Matrix Factorization approach
@@ -257,14 +259,17 @@ test_reco <- with(test_set, data_memory(user_index = userId, item_index = movieI
 r <- Reco()
 
 # Recosystem tuning
-para_reco <- r$tune(train_reco, opts = list(dim = c(20, 30),
+opts <- r$tune(train_reco, opts = list(dim = c(20, 30),
                                             costp_l2 = c(0.01, 0.1),
                                             costq_l2 = c(0.01, 0.1),
                                             lrate = c(0.01, 0.1),
-                                            nthread = 4,
+                                            nthread = 1,
                                             niter = 10))
+
+
+
 # Recosystem training
-r$train(train_reco, opts = c(para_reco$min, nthread = 4, niter = 30))
+r$train(train_reco, opts = c(opts$min, nthread = 1, niter = 30))
 
 # Recosystem prediction
 results_reco <- r$predict(test_reco, out_memory())
@@ -272,7 +277,8 @@ results_reco <- r$predict(test_reco, out_memory())
 # Model 5 RMSE
 factorization_rmse <- RMSE(results_reco, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 5: Matrix factorization using recosystem", RMSE = factorization_rmse))
-results %>% knitr::kable()
+knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
+  kable_styling(font_size = 20)
 
 ##########################################################
 # Create edx set, validation set (final hold-out test set)
