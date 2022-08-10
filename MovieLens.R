@@ -48,21 +48,21 @@ rm(dl, ratings, movies)
 ##Data exploration and visualization 
 
 # "The first 5 rows of the dataset, movielens"
-knitr::kable(head(movielens |> as_tibble(),5),
-             caption = "The first 5 rows of the dataset movielens",
-             digits = 2,
+knitr::kable(head(movielens %>% as_tibble(),5),
+             caption = "The first 5 rows of the dataset, movielens",
              align = "cccccc",
-             position = "b") |>
+             position = "h") %>%
   kable_styling(latex_options = "scale_down")
 
-
 #matrix users x movies x rating
+set.seed(1, sample.kind="Rounding")
 users <- sample(unique(movielens$userId), 50)
 movielens %>% filter(userId %in% users) %>% 
   select(userId, movieId, rating) %>%
   spread(movieId, rating) %>% select(sample(ncol(.), 50)) %>% 
   as.matrix() %>% t(.) %>%
   image.plot(1:50, 1:50,. , 
+             nlevel=9,
              xlab="Movies", 
              ylab="Users", 
              main= "Matrix: users x movies x rating")
@@ -152,8 +152,11 @@ mu
 # Model 1 - Naive_rmse
 naive_rmse <- RMSE(test_set$rating, mu)
 results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h") %>%
+  kable_styling(latex_options = "scale_down")
 
 ##Bias approach
 
@@ -176,8 +179,12 @@ predicted_ratings <- mu + test_set %>%
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias",
                                      RMSE = m_bias_rmse))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h") %>%
+  kable_styling(latex_options = "scale_down")
 
 
 # User bias
@@ -196,8 +203,11 @@ movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, 
                      tibble(Method = "Model 3: Mean + movie bias + user effect",
                             RMSE = movie_user_bias_rmse))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h") %>%
+  kable_styling(latex_options = "scale_down")
 
 ## Regularization approach
 
@@ -246,8 +256,11 @@ lambda
 results <- bind_rows(results, 
                      tibble(Method = "Model 4: Regularized movie and user effects",
                             RMSE = min(rmses)))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h") %>%
+  kable_styling(latex_options = "scale_down")
 
 
 ## Matrix Factorization approach
@@ -263,22 +276,25 @@ opts <- r$tune(train_reco, opts = list(dim = c(20, 30),
                                             costp_l2 = c(0.01, 0.1),
                                             costq_l2 = c(0.01, 0.1),
                                             lrate = c(0.01, 0.1),
-                                            nthread = 1,
+                                            nthread = 4,
                                             niter = 10))
 
-
-
 # Recosystem training
-r$train(train_reco, opts = c(opts$min, nthread = 1, niter = 30))
+r$train(train_reco, opts = c(opts$min, nthread = 4, niter = 30))
 
 # Recosystem prediction
 results_reco <- r$predict(test_reco, out_memory())
 
 # Model 5 RMSE
 factorization_rmse <- RMSE(results_reco, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 5: Matrix factorization using recosystem", RMSE = factorization_rmse))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 20)
+results <- bind_rows(results, 
+                     tibble(Method = "Model 5: Matrix factorization using recosystem",
+                            RMSE = factorization_rmse))
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h") %>%
+  kable_styling(latex_options = "scale_down")
 
 ##########################################################
 # Create edx set, validation set (final hold-out test set)
