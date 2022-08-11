@@ -15,7 +15,7 @@ bibliography: references.bib
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-# **Introduction**
+# Introduction
 
 A recommendation system, is a subclass of information filtering system that provide suggestions for items that are most pertinent to a particular user. Typically, the suggestions refer to various decision-making processes, such as what product to purchase, what music to listen to, or what movies to watch. [^1] The goal of this project is to create a movie recommendation system, which the RMSE \< 0.86490, using all the tools we have learn throughout the multi-part course in HarvardX's Data Science Professional Certificate series. As presented in the Machine Learning course [^2] [^3], a recommendation systems for a movie use ***ratings*** **(*y~u,i~*)** that ***users*** **(*u*)** have given to some items, or ***movies*** **(*i*)**, to make specific recommendations to specific user. In this model, movies for which a high rating is predicted for a given user are then recommended to that user. For this challenge we going to use a subset of dataset provided by the GroupLens. In our case the subset of this data is provided by MovieLens 10M movie ratings. This a stable benchmark dataset with **10 million ratings** applied to **10,000 movies** by **72,000 users**.
 
@@ -25,7 +25,7 @@ A recommendation system, is a subclass of information filtering system that prov
 
 [^3]: 34.7 Recommendation systems - <https://rafalab.github.io/dsbook/large-datasets.html#recommendation-systems>
 
-# **Methods**
+# Methods
 
 The methods section explains the process and techniques used in this project, in the first part, then explains the data cleaning used to extract and clean the data, in the second part. In the third part of this section we present the data exploration and visualization of the data to gain some insights. The fourth, and last part of this section, we show the modeling approach used in this project.
 
@@ -96,9 +96,8 @@ The exploration and visualization of the data provide insightful information abo
 ```{r The first 5 rows of the dataset, echo=TRUE, message=FALSE, warning=FALSE}
 knitr::kable(head(movielens %>% as_tibble(),5),
              caption = "The first 5 rows of the dataset, movielens",
-             digits = 2,
              align = "cccccc",
-             position = "b") %>%
+             position = "h") %>%
   kable_styling(latex_options = "scale_down")
 ```
 
@@ -106,12 +105,14 @@ The variables, `movieId`, `userId` and `rating`, that is going to be used to bui
 
 ```{r Matrix users x movies x rating, echo=TRUE, message=FALSE, warning=FALSE}
 #matrix users x movies x rating
+set.seed(1, sample.kind="Rounding")
 users <- sample(unique(movielens$userId), 50)
 movielens %>% filter(userId %in% users) %>% 
   select(userId, movieId, rating) %>%
   spread(movieId, rating) %>% select(sample(ncol(.), 50)) %>% 
   as.matrix() %>% t(.) %>%
   image.plot(1:50, 1:50,. , 
+             nlevel=9,
              xlab="Movies", 
              ylab="Users", 
              main= "Matrix: users x movies x rating")
@@ -237,8 +238,11 @@ mu
 # Model 1 - Naive_rmse
 naive_rmse <- RMSE(test_set$rating, mu)
 results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h")
+
 ```
 
 ### Bias approach
@@ -275,13 +279,16 @@ predicted_ratings <- mu + test_set %>%
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias", 
                                      RMSE = m_bias_rmse))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h")
+
 ```
 
 The user effects measure the variability across all users, in special the more actives users since they affect the average rate of more movies. As we saw in the colors of the matrix some users are more demanding than other. To fit the model we add the $b_u$ term. The code of the improved model is:
 
-```{r # Model 3 - Movies and User Bias RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Model 3 - Movies and User Bias RMSE, echo=TRUE, message=FALSE, warning=FALSE}
 # User bias
 user_bias <- train_set %>%
   left_join(movies_bias, by = "movieId") %>%
@@ -298,8 +305,11 @@ movie_user_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, 
                      tibble(Method = "Model 3: Mean + movie bias + user effect", 
                             RMSE = movie_user_bias_rmse))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h")
+
 ```
 
 ### Regularization approach
@@ -371,8 +381,10 @@ lambda
 results <- bind_rows(results, 
                      tibble(Method = "Model 4: Regularized movie and user effects",
                             RMSE = min(rmses)))
-knitr::kable( results %>% as_tibble(), caption = "RMSE by Approach") %>% 
-  kable_styling(font_size = 8)
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h")
 ```
 
 Finally we achieve our goal, the $RMSE$ is lower than 0.86490. But can we do better?
@@ -395,13 +407,43 @@ where ($u$,$v$) are locations of observed entries in $R$, $r_u,_v$ is the observ
 
 The `recosystem` had the best accuracy in comparative analysis, and going to be our choice. The algorithm use formatted data to tune the parameters by `$tune`, train by `$train` and test by `$predict`. The tune parameter adjust is: the number of latent factors `dim`, regularization cost for user and movie factors `costp_l2` and `costq_l2`, the step size in gradient descent `lrate`, the number of iterations `niter`.
 
-# **Results**
+```{r Model 5 Matrix Factorization using recosystem, echo=TRUE, message=FALSE, warning=FALSE}
+# Model 5 Matrix Factorization using recosystem
+set.seed(1, sample.kind="Rounding")
+train_reco <- with(train_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
+test_reco <- with(test_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
+r <- Reco()
+
+# Recosystem tuning
+opts <- r$tune(train_reco, opts = list(dim = c(20, 30),
+                                            costp_l2 = c(0.01, 0.1),
+                                            costq_l2 = c(0.01, 0.1),
+                                            lrate = c(0.01, 0.1),
+                                            nthread = 4,
+                                            niter = 10))
+
+# Recosystem training
+r$train(train_reco, opts = c(opts$min, nthread = 4, niter = 30))
+
+# Recosystem prediction
+results_reco <- r$predict(test_reco, out_memory())
+
+# Model 5 RMSE
+factorization_rmse <- RMSE(results_reco, test_set$rating)
+results <- bind_rows(results, tibble(Method = "Model 5: Matrix factorization using recosystem", RMSE = factorization_rmse))
+knitr::kable(results,
+             caption = "RMSE by approach",
+             align = "cc",
+             position = "h")
+```
+
+# Results
 
 With the `movielens` data frame the code create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
 
 Section that presents the modeling results and discusses the model performance
 
-# **Conclusion**
+# Conclusion
 
 Section that gives a brief summary of the report, its limitations and future work
 
