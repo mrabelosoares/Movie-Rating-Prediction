@@ -355,14 +355,5 @@ final_reco <- r$predict(validation_reco, out_memory())
 
 # Final RMSE
 final_rmse <- RMSE(final_reco, validation$rating)
-results <- bind_rows(results, tibble(Method = "Final validation: Matrix factorization using recosystem", RMSE = final_rmse))
-results %>% knitr::kable()
-
-## Appendix
-# For future debugging purposes
-print("Version Info")
-version
-
-update.packages(ask = FALSE, checkBuilt = TRUE)
-tinytex::tlmgr_update()
+final_rmse
 
