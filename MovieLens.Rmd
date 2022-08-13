@@ -321,7 +321,7 @@ The penalized least squares equation of the full model is presented bellow and t
 \lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
 $$
 
-To present the effect of penalty term let's choose a $λ = 20$ and compare the original values and regularized value. The plot show that as small the sample are more close to $0$, or closer to mean value, which means a smaller $RMSE$ for that sample.
+To present the effect of penalty term let's choose a $λ = 20$ and compare the original values and regularized value. The plot show that as small the sample are more close to $0$ will be, or closer to mean value, which means a smaller $RMSE$ for that sample.
 
 ```{r Lambda, echo=TRUE, message=FALSE, warning=FALSE}
 # Model 4 Regularization and RMSE
@@ -391,7 +391,7 @@ Finally we achieve our goal, the $RMSE$ is lower than 0.86490. But can we do bet
 
 ### Matrix Factorization approach
 
-A matrix Factorization is the last approach to solve recommendation system problem presented in this project. The main idea is that there is structure in the data, the factors as gender and actor, could be grouped and form a simplification of information. We can approximate the matrix $R_{m\times n}$ , that represent the relevant structure, by the product of two matrices of lower dimension: $P_{n\times k}$ , or the latent factors of users, and $Q_{n\times k}$.
+A matrix Factorization is the last approach to solve recommendation system problem presented in this project. The main idea is that there is structure in the data, the factors as gender and actor, could be grouped and form a simplification of information. We can approximate the matrix $R_{m\times n}$ , that represent the relevant structure, by the product of two matrices of lower dimension: $P_{n\times k}$ , or the latent factors of users, and $Q_{n\times k}$, that represent a group of movies.
 
 $$
 R\approx PQ'
@@ -405,7 +405,9 @@ $$
 
 where ($u$,$v$) are locations of observed entries in $R$, $r_u,_v$ is the observed rating, $f$ is the loss function, and $μ_P$,$μ_Q$,$λP$,$λQ$ are penalty parameters to avoid overfitting.
 
-The `recosystem` had the best accuracy in comparative analysis, and going to be our choice. The algorithm use formatted data to tune the parameters by `$tune`, train by `$train` and test by `$predict`. The tune parameter adjust is: the number of latent factors `dim`, regularization cost for user and movie factors `costp_l2` and `costq_l2`, the step size in gradient descent `lrate`, the number of iterations `niter`.
+The `recosystem` had the best accuracy in comparative analysis, and going to be our choice.[^9] The algorithm use formatted data to tune the parameters by `$tune`, train by `$train` and test by `$predict`. The tune parameter adjust is: the number of latent factors `dim`, regularization cost for user and movie factors `costp_l2` and `costq_l2`, the step size in gradient descent `lrate` and the number of iterations `niter`.
+
+[^9]: <https://rpubs.com/tarashnot/recommender_comparison>
 
 ```{r Model 5 Matrix Factorization using recosystem, echo=TRUE, message=FALSE, warning=FALSE}
 # Model 5 Matrix Factorization using recosystem
@@ -437,15 +439,80 @@ knitr::kable(results,
              position = "h")
 ```
 
+The model improved substantially and we achieve the best result so far, we have our choice to train and test the dataset.
+
 # Results
 
-With the `movielens` data frame the code create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
+This section presents the modeling results and discusses the model performance of the `movielens` data frame. The code below provided by HarvardX and create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
 
-Section that presents the modeling results and discusses the model performance
+```{r Final validation, echo=TRUE, message=FALSE, warning=FALSE}
+##########################################################
+# Create edx set, validation set (final hold-out test set)
+##########################################################
+
+dl <- tempfile()
+download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+
+# if using R 4.0 or later:
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Validation set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+################################################
+#End of inital code supplied by HarvardX course
+################################################
+
+
+# Final validation
+set.seed(1, sample.kind="Rounding")
+edx_reco <- with(edx, data_memory(user_index = userId, item_index = movieId, rating = rating))
+validation_reco <- with(validation, data_memory(user_index = userId, item_index = movieId, rating = rating))
+r <- Reco()
+
+para_reco <- r$tune(edx_reco, opts = list(dim = c(20, 30),
+                                          costp_l2 = c(0.01, 0.1),
+                                          costq_l2 = c(0.01, 0.1),
+                                          lrate = c(0.01, 0.1),
+                                          nthread = 4,
+                                          niter = 10))
+
+r$train(edx_reco, opts = c(para_reco$min, nthread = 4, niter = 30))
+
+# Final prediction
+final_reco <- r$predict(validation_reco, out_memory())
+
+# Final RMSE
+final_rmse <- RMSE(final_reco, validation$rating)
+final_rmse
+```
+
+The final results of matrix factorization is a $RMSE$ of XXXX
 
 # Conclusion
 
-Section that gives a brief summary of the report, its limitations and future work
+The recommendation system, developed in this project, provide suggestions for items that are most pertinent to a particular user. The goal of this project was achieved and the $RMSE$ of matrix factorization of XXXX is lower than our target 0.86490. A larger dataset maybe could provide a even better model since we have more data to train, and is one of the limitations of this project. The addition of more variables could be a good outlook for future works since can capture more structures and latent factors in the data.
 
 # References
 
