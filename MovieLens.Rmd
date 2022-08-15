@@ -101,9 +101,9 @@ knitr::kable(head(movielens %>% as_tibble(),5),
   kable_styling(latex_options = "scale_down")
 ```
 
-The variables, `movieId`, `userId` and `rating`, that is going to be used to build the model is presented as a matrix in the figure 1. The figure have the movies (`moveId`) in the x axis, the users in the y axis (`userId`), and the respective rating (`rating`). The matrix, extract from a sample of 50 users and 50 movies, provide some insights about the behavior of some users, the preference for some movies, and the sparse of the matrix. The goal of this project is to fill the blank spaces with a rate.
+The variables, `movieId`, `userId` and `rating`, that is going to be used to build the model is presented as a matrix in the figure 1. The figure have the movies (`moveId`) in the x axis, the users in the y axis (`userId`), and the respective rating (`rating`). The matrix, extract from a sample of 50 users and 50 movies, provide some insights about the behavior of some users, the preference for some movies, and the sparsity of the matrix. The goal of this project is to fill the blank spaces with a rate.
 
-```{r Matrix users x movies x rating, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Matrix users x movies x rating, echo=TRUE, message=FALSE, warning=FALSE,out.width = "50%",fig.align='center'}
 #matrix users x movies x rating
 set.seed(1, sample.kind="Rounding")
 users <- sample(unique(movielens$userId), 50)
@@ -115,12 +115,13 @@ movielens %>% filter(userId %in% users) %>%
              nlevel=9,
              xlab="Movies", 
              ylab="Users", 
-             main= "Matrix: users x movies x rating")
+             main= "Matrix: users x movies x rating",
+             out.width = "50%")
 ```
 
 To see a potential flaw in the data we make a slice of the top 5 most rated movies and most active users. The unique users that provided ratings, the unique movies that were rated and the unique rating provided by a unique user to a unique movie, are presented to illustrate the possible rating matrix $users \times movies$ = $10677 \times 69878 = 746087406$ and the realized rating matrix $10000054$, or 1.34% of points of the matrix is filled. The extremes values confirm that some users are much more actives than others, the most active user rated more than 50% of the total unique movies, and some movies have been rated for more than 1/3 of the total unique users.
 
-```{r Top 5 most rating movies and users, unique variables, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Top 5 most rating movies and users, unique variables, echo=TRUE, message=FALSE, warning=FALSE, out.width = "60%",fig.align='center'}
 # Unique users, movies, rating
 p0 <- tableGrob(movielens %>% summarize(n_users = n_distinct(userId), 
                                   n_movies = n_distinct(movieId),
@@ -162,7 +163,7 @@ gridExtra::grid.arrange(p1,
 
 The dataset distribution presented trough histograms provide some insights about the general proprieties of the data. As showed in the slice before some movies get rated more than others, and some user are more active than others.
 
-```{r distribution of movies and user, message=FALSE,echo=TRUE, warning=FALSE}
+```{r distribution of movies and user, message=FALSE,echo=TRUE, warning=FALSE,out.width = "60%",fig.align='center'}
 
 p3 <- movielens %>% 
   count(movieId) %>% 
@@ -255,7 +256,7 @@ $$
 
 The histogram presented below show the right skew distribution around zero for the movie effects, wich measure the mean of $Y_{u,i} - \hat{\mu}$ for each movie $i$.
 
-```{r Movie bias and distribution, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Movie bias and distribution, echo=TRUE, message=FALSE, warning=FALSE, out.width = "50%",fig.align='center'}
 # Movie bias
 movies_bias <- train_set %>%
   group_by(movieId) %>%
@@ -323,7 +324,7 @@ $$
 
 To present the effect of penalty term let's choose a $λ = 20$ and compare the original values and regularized value. The plot show that as small the sample are more close to $0$ will be, or closer to mean value, which means a smaller $RMSE$ for that sample.
 
-```{r Lambda, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Lambda, echo=TRUE, message=FALSE, warning=FALSE, out.width = "70%",fig.align='center'}
 # Model 4 Regularization and RMSE
 lambda <- 20
 mu <- mean(train_set$rating) 
@@ -352,7 +353,7 @@ $$
 \hat{b}_u(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{b}_i(\lambda) - \hat{\mu}\right)
 $$
 
-```{r Model 4, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Model 4, echo=TRUE, message=FALSE, warning=FALSE, out.width = "70%",fig.align='center'}
 #minimize the full model
 lambdas <- seq(0, 10, 0.25)
 
@@ -508,11 +509,11 @@ final_rmse <- RMSE(final_reco, validation$rating)
 final_rmse
 ```
 
-The final results of matrix factorization is a $RMSE$ of XXXX
+The final results of matrix factorization is a $RMSE$ of 0.78.
 
 # Conclusion
 
-The recommendation system, developed in this project, provide suggestions for items that are most pertinent to a particular user. The goal of this project was achieved and the $RMSE$ of matrix factorization of XXXX is lower than our target 0.86490. A larger dataset maybe could provide a even better model since we have more data to train, and is one of the limitations of this project. The addition of more variables could be a good outlook for future works since can capture more structures and latent factors in the data.
+The recommendation system, developed in this project, provide suggestions for items that are most pertinent to a particular user. The goal of this project was achieved and the $RMSE$ of matrix factorization of 0.78 is lower than our target 0.86490. A larger dataset could provide a even better model since we have more data to train, and is one of the limitations of this project. The addition of more variables could be a good outlook for future works since can capture more structures and latent factors in the data.
 
 # References
 
