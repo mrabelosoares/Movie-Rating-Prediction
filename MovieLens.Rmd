@@ -27,7 +27,7 @@ A recommendation system, is a subclass of information filtering system that prov
 
 # Methods
 
-The methods section explains the process and techniques used in this project, in the first part, then explains the data cleaning used to extract and clean the data, in the second part. In the third part of this section we present the data exploration and visualization of the data to gain some insights. The fourth, and last part of this section, we show the modeling approach used in this project.
+The methods section explains the process and techniques used in this project, in the first part, then explains the data cleaning used to extract and clean the data, in the second part. In the third part of this section we present the data exploration and visualization of the data to gain some insights. The fourth, and last part of this section, we show the modeling approach used in this project.[@xie2020]
 
 ## The process and techniques used
 
@@ -95,7 +95,7 @@ The exploration and visualization of the data provide insightful information abo
 
 ```{r The first 5 rows of the dataset, echo=TRUE, message=FALSE, warning=FALSE}
 knitr::kable(head(movielens %>% as_tibble(),5),
-             caption = "The first 5 rows of the dataset, movielens",
+             caption = "The first 5 rows of the dataset movielens",
              align = "cccccc",
              position = "h") %>%
   kable_styling(latex_options = "scale_down")
@@ -410,11 +410,15 @@ The `recosystem` had the best accuracy in comparative analysis, and going to be 
 
 [^9]: <https://rpubs.com/tarashnot/recommender_comparison>
 
-```{r Model 5 Matrix Factorization using recosystem, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Model 5 Matrix Factorization using recosystem, echo=TRUE, message=FALSE, warning=FALSE, results = FALSE}
 # Model 5 Matrix Factorization using recosystem
 set.seed(1, sample.kind="Rounding")
-train_reco <- with(train_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
-test_reco <- with(test_set, data_memory(user_index = userId, item_index = movieId, rating = rating))
+train_reco <- with(train_set, data_memory(user_index = userId,
+                                          item_index = movieId, 
+                                          rating = rating))
+test_reco <- with(test_set, data_memory(user_index = userId,
+                                        item_index = movieId,
+                                        rating = rating))
 r <- Reco()
 
 # Recosystem tuning
@@ -430,10 +434,14 @@ r$train(train_reco, opts = c(opts$min, nthread = 4, niter = 30))
 
 # Recosystem prediction
 results_reco <- r$predict(test_reco, out_memory())
+```
 
+```{r Model 5 RMSE, echo=TRUE, message=FALSE, warning=FALSE}
 # Model 5 RMSE
 factorization_rmse <- RMSE(results_reco, test_set$rating)
-results <- bind_rows(results, tibble(Method = "Model 5: Matrix factorization using recosystem", RMSE = factorization_rmse))
+results <- bind_rows(results, 
+                     tibble(Method = "Model 5: Matrix factorization using recosystem",
+                            RMSE = factorization_rmse))
 knitr::kable(results,
              caption = "RMSE by approach",
              align = "cc",
@@ -446,7 +454,7 @@ The model improved substantially and we achieve the best result so far, we have 
 
 This section presents the modeling results and discusses the model performance of the `movielens` data frame. The code below provided by HarvardX and create the `edx` and `validation` datasets that will be used to train and test our final algorithm.
 
-```{r Final validation, echo=TRUE, message=FALSE, warning=FALSE}
+```{r Final validation, echo=TRUE, message=FALSE, warning=FALSE, results = FALSE}
 ##########################################################
 # Create edx set, validation set (final hold-out test set)
 ##########################################################
@@ -488,8 +496,12 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 
 # Final validation
 set.seed(1, sample.kind="Rounding")
-edx_reco <- with(edx, data_memory(user_index = userId, item_index = movieId, rating = rating))
-validation_reco <- with(validation, data_memory(user_index = userId, item_index = movieId, rating = rating))
+edx_reco <- with(edx, data_memory(user_index = userId,
+                                  item_index = movieId,
+                                  rating = rating))
+validation_reco <- with(validation, data_memory(user_index = userId,
+                                                item_index = movieId,
+                                                rating = rating))
 r <- Reco()
 
 para_reco <- r$tune(edx_reco, opts = list(dim = c(20, 30),
@@ -500,7 +512,9 @@ para_reco <- r$tune(edx_reco, opts = list(dim = c(20, 30),
                                           niter = 10))
 
 r$train(edx_reco, opts = c(para_reco$min, nthread = 4, niter = 30))
+```
 
+```{r Final prediction, echo=TRUE, message=FALSE, warning=FALSE}
 # Final prediction
 final_reco <- r$predict(validation_reco, out_memory())
 
