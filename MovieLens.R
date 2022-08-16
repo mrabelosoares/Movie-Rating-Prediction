@@ -49,7 +49,7 @@ rm(dl, ratings, movies)
 
 # "The first 5 rows of the dataset, movielens"
 knitr::kable(head(movielens %>% as_tibble(),5),
-             caption = "The first 5 rows of the dataset, movielens",
+             caption = "The first 5 rows of the dataset movielens",
              align = "cccccc",
              position = "h") %>%
   kable_styling(latex_options = "scale_down")
