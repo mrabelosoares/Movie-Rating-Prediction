@@ -2,7 +2,7 @@
 title: 'Movie Rating Prediction Project: Movie Lens Dataset'
 subtitle: 'HarvardX - PH125.9x Data Science: Capstone Course'
 author: "Mauricio Rabelo Soares"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
+date: "16 august 2022"
 output:
   pdf_document:
       latex_engine: lualatex
