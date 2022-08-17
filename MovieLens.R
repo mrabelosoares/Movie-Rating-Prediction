@@ -65,7 +65,8 @@ movielens %>% filter(userId %in% users) %>%
              nlevel=9,
              xlab="Movies", 
              ylab="Users", 
-             main= "Matrix: users x movies x rating")
+             main= "Matrix: users x movies x rating",
+             out.width = "50%")
 
 # Unique users, movies, rating
 p0 <- tableGrob(movielens %>% summarize(n_users = n_distinct(userId), 
@@ -179,13 +180,11 @@ predicted_ratings <- mu + test_set %>%
 m_bias_rmse <- RMSE(predicted_ratings, test_set$rating)
 results <- bind_rows(results, tibble(Method = "Model 2: Mean + movie bias",
                                      RMSE = m_bias_rmse))
-results <- tibble(Method = "Model 1: Naive RMSE", RMSE = naive_rmse)
 knitr::kable(results,
              caption = "RMSE by approach",
              align = "cc",
              position = "h") %>%
   kable_styling(latex_options = "scale_down")
-
 
 # User bias
 user_bias <- train_set %>%
